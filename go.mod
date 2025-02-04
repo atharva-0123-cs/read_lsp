@@ -1,1 +1,3 @@
-module github.com/gorilla/mux/mod
+module golsp
+
+go 1.21.6
