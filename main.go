@@ -3,17 +3,15 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"golsp/analysis"
 	"golsp/lsp"
 	"golsp/rpc"
+	"io"
 	"log"
 	"os"
 )
 
 func main() {
-	fmt.Println("Start LSP")
-
 	logger := getLogger("/home/atharva/code/golsp/log.txt")
 	logger.Println("Hey I started")
 
@@ -21,6 +19,7 @@ func main() {
 	scanner.Split(rpc.Split)
 
 	state := analysis.NewState()
+	writer := os.Stdout
 
 	for scanner.Scan() {
 		msg := scanner.Bytes()
@@ -29,12 +28,18 @@ func main() {
 			logger.Printf("Got an Error : %s", err)
 			continue
 		}
-		haindelMessge(logger, method, state, contents)
+		haindelMessge(logger, writer, method, state, contents)
 	}
+}
+
+func writeResponse(writer io.Writer, msg any) {
+	reply := rpc.EncodeMessage(msg)
+	writer.Write([]byte(reply))
 }
 
 func haindelMessge(
 	logger *log.Logger,
+	writer io.Writer,
 	method string,
 	state analysis.State,
 	contents []byte,
@@ -58,11 +63,7 @@ func haindelMessge(
 		// hey ... let's reply!
 
 		msg := lsp.NewInitializeResponse(requset.ID)
-		reply := rpc.EncodeMessage(msg)
-
-		writer := os.Stdout
-		writer.Write([]byte(reply))
-
+		writeResponse(writer, msg)
 		logger.Print("Sent the reply ")
 
 	case "textDocument/didOpen":
@@ -82,20 +83,91 @@ func haindelMessge(
 		)
 
 	case "textDocument/didChange":
-		var requset lsp.TextDocumentDidChangeNotification
+		var request lsp.TextDocumentDidChangeNotification
+		if err := json.Unmarshal(contents, &request); err != nil {
+			logger.Printf("textDocument/didChange: %s", err)
+			return
+		}
+
+		logger.Printf("Changed: %s", request.Params.TextDocument.URI)
+		for _, change := range request.Params.ContentChanges {
+			diagnostics := state.UpdateDocument(
+				request.Params.TextDocument.URI,
+				change.Text,
+			)
+			writeResponse(writer, lsp.PublishDiagnosticsNotification{
+				Notificaton: lsp.Notificaton{
+					RPC:    "2.0",
+					Method: "textDocument/publishDiagnostics",
+				},
+				Params: lsp.PublishDiagnosticsParams{
+					URI:         request.Params.TextDocument.URI,
+					Diagnostics: diagnostics,
+				},
+			})
+		}
+	case "textDocument/hover":
+		var requset lsp.HoverRequest
 		if err := json.Unmarshal(contents, &requset); err != nil {
 			logger.Printf("hey could not parse this %s ", err)
 		}
 
-		logger.Printf(
-			"Changed %s %s",
+		// create a writeResponse
+		response := state.Hover(
+			requset.ID,
 			requset.Params.TextDocument.URI,
-			requset.Params.ContentChanges,
+			requset.Params.Position,
+		) // writ it back
+		writeResponse(writer, response)
+
+	case "textDocument/definition":
+		var request lsp.DefinitionRequest
+		if err := json.Unmarshal(contents, &request); err != nil {
+			logger.Printf("textDocument/definition: %s", err)
+			return
+		}
+
+		// Create a response
+		response := state.Definition(
+			request.ID,
+			request.Params.TextDocument.URI,
+			request.Params.Position,
 		)
 
-		for _, change := range requset.Params.ContentChanges {
-			state.UpdateDocument(requset.Params.TextDocument.URI, change.Text)
+		// Write it back
+		writeResponse(writer, response)
+
+	case "textDocument/codeAction":
+		var request lsp.CodeActionRequest
+		if err := json.Unmarshal(contents, &request); err != nil {
+			logger.Printf("textDocument/definition: %s", err)
+			return
 		}
+
+		// Create a response
+		response := state.TextDocumentCodeAction(
+			request.ID,
+			request.Params.TextDocument.URI,
+		)
+
+		// Write it back
+		writeResponse(writer, response)
+
+	case "textDocument/completion":
+		var request lsp.CompletionRequest
+		if err := json.Unmarshal(contents, &request); err != nil {
+			logger.Printf("textDocument/codeAction: %s", err)
+			return
+		}
+
+		// Create a response
+		response := state.TextDocumentCompletion(
+			request.ID,
+			request.Params.TextDocument.URI,
+		)
+
+		// Write it back
+		writeResponse(writer, response)
 
 	}
 }

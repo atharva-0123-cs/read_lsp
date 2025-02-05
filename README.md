@@ -1,17 +1,18 @@
-
+# `golsp`
 Hello, World
 - hey im atharva
-hey im one more change
-yo add new content
-yo now it works  dd
-dk
 Hello
 World
 this
 is 
 cool djjd
+VS Code
+Neovim (BTW)
+Neovim (BTW)
 
-{
+
+
+
 list.get(1); 1
 list.get(2); 2
 list.get(3); 3
