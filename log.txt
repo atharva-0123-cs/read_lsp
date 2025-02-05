@@ -1,7 +1,96 @@
-[golsp]2025/02/04 23:10:32 main.go:17: Hey I started
-[golsp]2025/02/04 23:10:32 main.go:34: Recived Method : initialize 
-[golsp]2025/02/04 23:10:32 main.go:44: Conneted to Neovim 0.10.0-dev+g27fb62988
-[golsp]2025/02/04 23:10:32 main.go:58: Sent the reply 
-[golsp]2025/02/04 23:10:33 main.go:34: Recived Method : initialized 
-[golsp]2025/02/04 23:10:33 main.go:34: Recived Method : textDocument/didOpen 
-[golsp]2025/02/04 23:10:53 main.go:34: Recived Method : shutdown 
+[golsp]2025/02/05 13:21:17 main.go:18: Hey I started
+[golsp]2025/02/05 13:21:17 main.go:42: Recived Method : initialize 
+[golsp]2025/02/05 13:21:17 main.go:52: Conneted to Neovim 0.10.0-dev+g27fb62988
+[golsp]2025/02/05 13:21:17 main.go:66: Sent the reply 
+[golsp]2025/02/05 13:21:18 main.go:42: Recived Method : initialized 
+[golsp]2025/02/05 13:21:18 main.go:42: Recived Method : textDocument/didOpen 
+[golsp]2025/02/05 13:21:18 main.go:74: Opened file:///home/atharva/code/golsp/README.md
+[golsp]2025/02/05 13:21:25 main.go:42: Recived Method : textDocument/didChange 
+[golsp]2025/02/05 13:21:25 main.go:90: Changed file:///home/atharva/code/golsp/README.md [{
+Hello, World
+- hey im atharva
+hey im one more change
+yo add new content
+yo now it works 
+dk
+Hello
+World
+this
+is 
+cool djjd
+
+{
+list.get(1); 1
+list.get(2); 2
+list.get(3); 3
+list.get(4); 4
+}
+
+}]
+[golsp]2025/02/05 13:21:26 main.go:42: Recived Method : textDocument/didChange 
+[golsp]2025/02/05 13:21:26 main.go:90: Changed file:///home/atharva/code/golsp/README.md [{
+Hello, World
+- hey im atharva
+hey im one more change
+yo add new content
+yo now it works  
+dk
+Hello
+World
+this
+is 
+cool djjd
+
+{
+list.get(1); 1
+list.get(2); 2
+list.get(3); 3
+list.get(4); 4
+}
+
+}]
+[golsp]2025/02/05 13:21:26 main.go:42: Recived Method : textDocument/didChange 
+[golsp]2025/02/05 13:21:26 main.go:90: Changed file:///home/atharva/code/golsp/README.md [{
+Hello, World
+- hey im atharva
+hey im one more change
+yo add new content
+yo now it works  d
+dk
+Hello
+World
+this
+is 
+cool djjd
+
+{
+list.get(1); 1
+list.get(2); 2
+list.get(3); 3
+list.get(4); 4
+}
+
+}]
+[golsp]2025/02/05 13:21:26 main.go:42: Recived Method : textDocument/didChange 
+[golsp]2025/02/05 13:21:26 main.go:90: Changed file:///home/atharva/code/golsp/README.md [{
+Hello, World
+- hey im atharva
+hey im one more change
+yo add new content
+yo now it works  dd
+dk
+Hello
+World
+this
+is 
+cool djjd
+
+{
+list.get(1); 1
+list.get(2); 2
+list.get(3); 3
+list.get(4); 4
+}
+
+}]
+[golsp]2025/02/05 13:21:29 main.go:42: Recived Method : textDocument/didSave 
