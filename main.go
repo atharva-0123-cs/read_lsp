@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	logger := getLogger("/home/atharva/code/golsp/log.txt")
+	logger := getLogger("./log.txt")
 	logger.Println("Hey I started")
 
 	scanner := bufio.NewScanner(os.Stdin)
