@@ -223,6 +223,155 @@ func TestCompletionOffersBlockSnippetsOnEmptyLine(t *testing.T) {
 	}
 }
 
+func TestCompletionOffersBlockquoteSnippets(t *testing.T) {
+	state := NewState()
+	uri := "file:///completion.md"
+
+	tests := []struct {
+		name      string
+		text      string
+		character int
+		want      map[string]string
+	}{
+		{
+			name:      "outer blockquote",
+			text:      ">",
+			character: 1,
+			want: map[string]string{
+				"Blockquote":                      "> ${1:quote}",
+				"Nested blockquote":               "> > ${1:quote}",
+				"Fenced code block in blockquote": "> ```\n> ${1:code}\n> ```",
+			},
+		},
+		{
+			name:      "nested blockquote",
+			text:      "> >",
+			character: 3,
+			want: map[string]string{
+				"Blockquote":                      "> > ${1:quote}",
+				"Nested blockquote":               "> > > ${1:quote}",
+				"Fenced code block in blockquote": "> > ```\n> > ${1:code}\n> > ```",
+			},
+		},
+		{
+			name:      "compact nested blockquote",
+			text:      ">>",
+			character: 2,
+			want: map[string]string{
+				"Blockquote":                      "> > ${1:quote}",
+				"Nested blockquote":               "> > > ${1:quote}",
+				"Fenced code block in blockquote": "> > ```\n> > ${1:code}\n> > ```",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			state.OpenDocument(uri, test.text)
+			response := state.TextDocumentCompletion(json.RawMessage(`1`), uri, lsp.Position{Line: 0, Character: test.character})
+			if len(response.Result) != len(test.want) {
+				t.Fatalf("expected %d completions, got %#v", len(test.want), response.Result)
+			}
+			for _, item := range response.Result {
+				want, ok := test.want[item.Label]
+				if !ok {
+					t.Fatalf("unexpected completion %q", item.Label)
+				}
+				if item.TextEdit == nil || item.TextEdit.NewText != want {
+					t.Fatalf("unexpected %q completion: %#v", item.Label, item)
+				}
+			}
+		})
+	}
+}
+
+func TestCompletionPrefixesBlockquoteContextSnippets(t *testing.T) {
+	state := NewState()
+	uri := "file:///completion.md"
+
+	tests := []struct {
+		name      string
+		text      string
+		character int
+		label     string
+		want      string
+	}{
+		{"heading", "> #", 3, "Heading 1", "> # ${1:Heading}"},
+		{"nested heading", "> > #", 5, "Heading 1", "> > # ${1:Heading}"},
+		{"bulleted list", "> -", 3, "Bulleted list item", "> - ${1:item}"},
+		{"fenced code", "> ```", 5, "Fenced code block", "> ```\n> ${1:code}\n> ```"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			state.OpenDocument(uri, test.text)
+			response := state.TextDocumentCompletion(json.RawMessage(`1`), uri, lsp.Position{Line: 0, Character: test.character})
+			for _, item := range response.Result {
+				if item.Label != test.label {
+					continue
+				}
+				if item.TextEdit == nil || item.TextEdit.NewText != test.want {
+					t.Fatalf("unexpected %q completion: %#v", test.label, item)
+				}
+				return
+			}
+			t.Fatalf("expected %q completion, got %#v", test.label, response.Result)
+		})
+	}
+}
+
+func TestCompletionOffersFenceLanguages(t *testing.T) {
+	state := NewState()
+	uri := "file:///completion.md"
+
+	tests := []struct {
+		name      string
+		text      string
+		character int
+		label     string
+		want      string
+		wantLen   int
+	}{
+		{"single backtick", "`", 1, "Go", "```go\n${1:code}\n```", 0},
+		{"single backtick language", "`py", 3, "Python", "```python\n${1:code}\n```", 1},
+		{"triple backtick", "```", 3, "Python", "```python\n${1:code}\n```", 0},
+		{"partial language", "```py", 5, "Python", "```python\n${1:code}\n```", 1},
+		{"info string alias", "```ts", 5, "TypeScript", "```ts\n${1:code}\n```", 1},
+		{"blockquote language", "> ```rus", 8, "Rust", "> ```rust\n> ${1:code}\n> ```", 1},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			state.OpenDocument(uri, test.text)
+			response := state.TextDocumentCompletion(json.RawMessage(`1`), uri, lsp.Position{Line: 0, Character: test.character})
+			if test.wantLen > 0 && len(response.Result) != test.wantLen {
+				t.Fatalf("expected %d completions, got %#v", test.wantLen, response.Result)
+			}
+			for _, item := range response.Result {
+				if item.Label != test.label {
+					continue
+				}
+				if item.TextEdit == nil || item.TextEdit.NewText != test.want {
+					t.Fatalf("unexpected %q completion: %#v", test.label, item)
+				}
+				return
+			}
+			t.Fatalf("expected %q completion, got %#v", test.label, response.Result)
+		})
+	}
+}
+
+func TestCompletionIgnoresClosedInlineCode(t *testing.T) {
+	state := NewState()
+	uri := "file:///completion.md"
+	state.OpenDocument(uri, "`code`")
+
+	response := state.TextDocumentCompletion(json.RawMessage(`1`), uri, lsp.Position{Line: 0, Character: 6})
+	if len(response.Result) != 0 {
+		t.Fatalf("expected no completions, got %#v", response.Result)
+	}
+}
+
 func TestCompletionOffersLinksAndImages(t *testing.T) {
 	state := NewState()
 	uri := "file:///completion.md"

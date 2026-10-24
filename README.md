@@ -17,9 +17,10 @@ diagnostics back to the client. The language features follow the
 - **Asynchronous request multiplexing** with a bounded worker pool, a dedicated
   serialized writer, and `$/cancelRequest` support.
 - **Thread-safe document state** protected by `sync.RWMutex`.
-- **Markdown syntax support** for ATX and Setext headings, fenced code blocks,
-  link reference definitions, thematic breaks, links, images, autolinks, inline
-  HTML tags, list markers, blockquote prefixes, and inline code spans.
+- **Markdown syntax support** for ATX headings, supported Setext headings,
+  fenced code blocks, link reference definitions, thematic breaks, links,
+  images, autolinks, inline HTML tags, list markers, blockquote prefixes, and
+  inline code spans.
 - **Streaming diagnostics** with per-document debouncing, stale-result
   suppression, and a final flush on shutdown.
 - **Editor features** including diagnostics, hover, go to definition, find
@@ -128,7 +129,7 @@ go test ./server
 The parser recognizes:
 
 - ATX headings (`# Heading`) and Setext headings (`Heading` underlined with
-  `===` or `---`).
+  `===` or `---`) outside list items.
 - Blockquote prefixes, including nested markers, and fenced code blocks inside
   blockquotes.
 - Ordered and unordered list markers.
@@ -138,8 +139,8 @@ The parser recognizes:
 - Inline code spans for unclosed-span diagnostics and hover.
 - Inline HTML tags for masking and hover.
 - Thematic breaks.
-- ATX headings and link reference definitions inside blockquotes and list
-  items, plus Setext headings inside blockquotes.
+- ATX headings and link reference definitions inside blockquotes and
+  single-level list items, plus Setext headings inside blockquotes.
 
 Diagnostics check for:
 
@@ -150,18 +151,6 @@ Diagnostics check for:
   definitions.
 - Local anchors that do not match any heading.
 - Ordered list markers that use `)` instead of `.`.
-
-Hover shows heading metadata, fenced-code details, link and autolink
-destinations, reference definitions, inline HTML, and inline code. Go to
-definition jumps from a reference link to its definition and from an anchor to
-its heading. Find references locates link uses and anchor targets. Document
-symbols expose nested headings, and folding ranges cover headings and fenced
-code. Completion provides Markdown snippets for ATX headings, links, images,
-autolinks, emphasis, lists (including task items), blockquotes, fenced code,
-and reference definitions. Code actions can add a heading space, limit heading
-depth to six, close a fence, inline code span, link, reference label, autolink,
-or emphasis span, fix ordered list markers, remove duplicate or invalid
-definitions, and add missing reference definitions.
 
 Known Markdown support gaps are tracked in [TODO.md](TODO.md).
 

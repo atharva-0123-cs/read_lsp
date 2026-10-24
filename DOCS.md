@@ -364,6 +364,9 @@ line prefix with a `TextEdit`:
 - A line made only of `#` characters offers six heading levels.
 - An empty line offers headings, links, images, autolinks, emphasis, lists,
   blockquotes, fenced code, and reference definitions.
+- A line starting with backticks or tildes offers a plain fenced block plus
+  snippets for common languages. A language name or info string after the
+  markers filters the list, and enclosing blockquote prefixes are preserved.
 - A line starting with `[` offers inline and reference links.
 - A line starting with `![` offers inline and reference images.
 - A line starting with `<` offers URL and email autolinks.

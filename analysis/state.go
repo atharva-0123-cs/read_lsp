@@ -676,42 +676,194 @@ func completionItems(text string, position lsp.Position) []lsp.CompletionItem {
 		End:   lsp.Position{Line: position.Line, Character: character},
 	}
 
-	switch {
-	case marker == "":
+	if marker == "" {
 		return blockCompletionItems(indent, replace)
-	case strings.Trim(marker, "#") == "":
-		return headingCompletionItems(indent, replace)
-	case marker == ">":
-		return []lsp.CompletionItem{
-			snippetItem("Blockquote", "Markdown blockquote", indent+"> ${1:quote}", replace),
+	}
+
+	quotePrefix, content, depth := blockquoteCompletionPrefix(marker)
+	if depth > 0 {
+		prefix := indent + quotePrefix
+		if content == "" {
+			return blockquoteCompletionItems(prefix, depth, replace)
 		}
+		return contextCompletionItems(content, prefix, replace)
+	}
+
+	return contextCompletionItems(marker, indent, replace)
+}
+
+// blockquoteCompletionPrefix strips leading blockquote markers from a completion prefix.
+func blockquoteCompletionPrefix(marker string) (prefix, content string, depth int) {
+	cursor := 0
+	for cursor < len(marker) && marker[cursor] == '>' {
+		cursor++
+		depth++
+		for cursor < len(marker) && (marker[cursor] == ' ' || marker[cursor] == '\t') {
+			cursor++
+		}
+	}
+	if depth == 0 {
+		return "", marker, 0
+	}
+	return strings.Repeat("> ", depth), marker[cursor:], depth
+}
+
+// blockquoteCompletionItems returns snippets for blockquote content.
+func blockquoteCompletionItems(prefix string, depth int, replace lsp.Range) []lsp.CompletionItem {
+	return []lsp.CompletionItem{
+		snippetItem("Blockquote", "Markdown blockquote", prefix+"${1:quote}", replace),
+		snippetItem("Nested blockquote", "Markdown nested blockquote", strings.Repeat("> ", depth+1)+"${1:quote}", replace),
+		snippetItem("Fenced code block in blockquote", "Markdown fenced code block", quotedFencedCode(prefix), replace),
+	}
+}
+
+// contextCompletionItems returns snippets for the Markdown context after any container prefix.
+func contextCompletionItems(marker, prefix string, replace lsp.Range) []lsp.CompletionItem {
+	if items, ok := fenceCompletionItems(marker, prefix, replace); ok {
+		return items
+	}
+
+	switch {
+	case strings.Trim(marker, "#") == "":
+		return headingCompletionItems(prefix, replace)
 	case marker == "-" || marker == "*" || marker == "+":
 		return []lsp.CompletionItem{
-			snippetItem("Bulleted list item", "Markdown bulleted list", indent+marker+" ${1:item}", replace),
-			snippetItem("Task list item", "Markdown task list", indent+"- [ ] ${1:task}", replace),
+			snippetItem("Bulleted list item", "Markdown bulleted list", prefix+marker+" ${1:item}", replace),
+			snippetItem("Task list item", "Markdown task list", prefix+"- [ ] ${1:task}", replace),
 		}
 	case isOrderedListMarker(marker):
 		return []lsp.CompletionItem{
-			snippetItem("Numbered list item", "Markdown numbered list", indent+"1. ${1:item}", replace),
+			snippetItem("Numbered list item", "Markdown numbered list", prefix+"1. ${1:item}", replace),
 		}
 	case strings.HasPrefix(marker, "["):
 		return []lsp.CompletionItem{
-			snippetItem("Inline link", "Markdown inline link", indent+"[${1:link text}](${2:https://example.com})", replace),
-			snippetItem("Reference link", "Markdown reference link", indent+"[${1:link text}][${2:label}]", replace),
+			snippetItem("Inline link", "Markdown inline link", prefix+"[${1:link text}](${2:https://example.com})", replace),
+			snippetItem("Reference link", "Markdown reference link", prefix+"[${1:link text}][${2:label}]", replace),
 		}
 	case strings.HasPrefix(marker, "!["):
 		return []lsp.CompletionItem{
-			snippetItem("Image", "Markdown image", indent+"![${1:alt text}](${2:https://example.com/image.png})", replace),
-			snippetItem("Reference image", "Markdown reference image", indent+"![${1:alt text}][${2:label}]", replace),
+			snippetItem("Image", "Markdown image", prefix+"![${1:alt text}](${2:https://example.com/image.png})", replace),
+			snippetItem("Reference image", "Markdown reference image", prefix+"![${1:alt text}][${2:label}]", replace),
 		}
 	case strings.HasPrefix(marker, "<"):
 		return []lsp.CompletionItem{
-			snippetItem("Autolink", "Markdown autolink", indent+"<${1:https://example.com}>", replace),
-			snippetItem("Email autolink", "Markdown email autolink", indent+"<${1:name@example.com}>", replace),
+			snippetItem("Autolink", "Markdown autolink", prefix+"<${1:https://example.com}>", replace),
+			snippetItem("Email autolink", "Markdown email autolink", prefix+"<${1:name@example.com}>", replace),
 		}
 	default:
 		return []lsp.CompletionItem{}
 	}
+}
+
+// codeLanguage describes a fenced-code language completion.
+type codeLanguage struct {
+	label string
+	info  string
+}
+
+// codeLanguages are the languages offered for fenced-code syntax highlighting.
+var codeLanguages = []codeLanguage{
+	{"Go", "go"},
+	{"Python", "python"},
+	{"JavaScript", "js"},
+	{"TypeScript", "ts"},
+	{"Rust", "rust"},
+	{"C", "c"},
+	{"C++", "cpp"},
+	{"C#", "csharp"},
+	{"Java", "java"},
+	{"Kotlin", "kotlin"},
+	{"Swift", "swift"},
+	{"Ruby", "ruby"},
+	{"PHP", "php"},
+	{"Lua", "lua"},
+	{"Bash", "bash"},
+	{"Shell", "sh"},
+	{"SQL", "sql"},
+	{"JSON", "json"},
+	{"YAML", "yaml"},
+	{"TOML", "toml"},
+	{"HTML", "html"},
+	{"CSS", "css"},
+	{"XML", "xml"},
+	{"Markdown", "markdown"},
+	{"Dockerfile", "dockerfile"},
+}
+
+// fenceCompletionItems returns plain and language-specific fenced-code snippets.
+func fenceCompletionItems(marker, prefix string, replace lsp.Range) ([]lsp.CompletionItem, bool) {
+	opening, query, ok := fenceCompletionPrefix(marker)
+	if !ok {
+		return nil, false
+	}
+	if len(opening) < 3 {
+		opening = strings.Repeat(string(opening[0]), 3)
+	}
+
+	items := []lsp.CompletionItem{}
+	if query == "" {
+		items = append(items, snippetItem(
+			"Fenced code block",
+			"Markdown fenced code block",
+			fencedCodeText(prefix, opening, ""),
+			replace,
+		))
+	}
+	for _, language := range codeLanguages {
+		if !languageMatches(language, query) {
+			continue
+		}
+		items = append(items, snippetItem(
+			language.label,
+			"Markdown fenced code block: "+language.label,
+			fencedCodeText(prefix, opening, language.info),
+			replace,
+		))
+	}
+	return items, true
+}
+
+// fenceCompletionPrefix parses a backtick or tilde prefix and optional language.
+func fenceCompletionPrefix(marker string) (opening, language string, ok bool) {
+	if marker == "" {
+		return "", "", false
+	}
+	fence := marker[0]
+	if fence != '`' && fence != '~' {
+		return "", "", false
+	}
+
+	index := 0
+	for index < len(marker) && marker[index] == fence {
+		index++
+	}
+	opening = marker[:index]
+	language = strings.TrimSpace(marker[index:])
+	if strings.ContainsAny(language, "`~ \t") {
+		return "", "", false
+	}
+	return opening, language, true
+}
+
+// languageMatches reports whether a language label or info string matches a query.
+func languageMatches(language codeLanguage, query string) bool {
+	if query == "" {
+		return true
+	}
+	query = strings.ToLower(query)
+	return strings.HasPrefix(strings.ToLower(language.label), query) ||
+		strings.HasPrefix(strings.ToLower(language.info), query)
+}
+
+// fencedCodeText returns a fenced code snippet that prefixes every line.
+func fencedCodeText(prefix, opening, info string) string {
+	closing := strings.Repeat(string(opening[0]), len(opening))
+	return prefix + opening + info + "\n" + prefix + "${1:code}\n" + prefix + closing
+}
+
+// quotedFencedCode returns a plain fenced code snippet with a container prefix.
+func quotedFencedCode(prefix string) string {
+	return fencedCodeText(prefix, "```", "")
 }
 
 // blockCompletionItems returns snippets suitable for an empty line.
