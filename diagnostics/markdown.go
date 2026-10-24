@@ -7,6 +7,7 @@ import (
 	"github.com/atharva-0123-cs/read_lsp/lsp"
 )
 
+// referenceUse records a reference label used in a line.
 type referenceUse struct {
 	Label string
 	Line  int
@@ -14,11 +15,13 @@ type referenceUse struct {
 	End   int
 }
 
+// span is a half-open byte range within a line.
 type span struct {
 	Start int
 	End   int
 }
 
+// inlineDiagnostics checks code, links, HTML, and emphasis in a line.
 func inlineDiagnostics(document *Document, lineNumber int) ([]lsp.Diagnostic, []referenceUse) {
 	line := document.Lines[lineNumber]
 	if line == "" {
@@ -42,6 +45,7 @@ func inlineDiagnostics(document *Document, lineNumber int) ([]lsp.Diagnostic, []
 	return result, references
 }
 
+// maskCodeSpans blanks inline code and reports unclosed spans.
 func maskCodeSpans(line string, lineNumber, offset int) (string, []lsp.Diagnostic) {
 	bytes := []byte(line)
 	result := []lsp.Diagnostic{}
@@ -79,6 +83,7 @@ func maskCodeSpans(line string, lineNumber, offset int) (string, []lsp.Diagnosti
 	return string(bytes), result
 }
 
+// findCodeSpanClose finds a closing backtick run of the same length.
 func findCodeSpanClose(line []byte, start, length int) int {
 	for index := start; index < len(line); {
 		if line[index] == '\\' {
@@ -99,6 +104,7 @@ func findCodeSpanClose(line []byte, start, length int) int {
 	return -1
 }
 
+// runLength counts consecutive occurrences of a byte.
 func runLength(line []byte, start int, target byte) int {
 	length := 0
 	for start+length < len(line) && line[start+length] == target {
@@ -107,6 +113,7 @@ func runLength(line []byte, start int, target byte) int {
 	return length
 }
 
+// scanLinks validates links and collects reference labels.
 func scanLinks(document *Document, line string, lineNumber, offset int) ([]lsp.Diagnostic, []referenceUse, []span) {
 	result := []lsp.Diagnostic{}
 	references := []referenceUse{}
@@ -207,6 +214,7 @@ func scanLinks(document *Document, line string, lineNumber, offset int) ([]lsp.D
 	return result, references, destinations
 }
 
+// scanReference validates a reference label and records its use.
 func scanReference(
 	document *Document,
 	line string,
@@ -244,6 +252,7 @@ func scanReference(
 	return closeReference + 1, true
 }
 
+// spacedReferenceBracket finds a reference bracket after whitespace.
 func spacedReferenceBracket(line string, next int) int {
 	cursor := next
 	for cursor < len(line) && (line[cursor] == ' ' || line[cursor] == '\t') {
@@ -255,6 +264,7 @@ func spacedReferenceBracket(line string, next int) int {
 	return -1
 }
 
+// findMatchingBracket finds the closing bracket for a link.
 func findMatchingBracket(line string, open int) int {
 	depth := 0
 	escaped := false
@@ -279,6 +289,7 @@ func findMatchingBracket(line string, open int) int {
 	return -1
 }
 
+// findMatchingParen finds the closing parenthesis for a link target.
 func findMatchingParen(line string, open int) int {
 	depth := 1
 	escaped := false
@@ -329,6 +340,7 @@ func findMatchingParen(line string, open int) int {
 	return -1
 }
 
+// findClosingReference finds the closing bracket of a reference label.
 func findClosingReference(line string, open int) int {
 	escaped := false
 	for index := open + 1; index < len(line); index++ {
@@ -347,6 +359,7 @@ func findClosingReference(line string, open int) int {
 	return -1
 }
 
+// maskRanges blanks selected spans in a line.
 func maskRanges(line string, spans []span) string {
 	bytes := []byte(line)
 	for _, current := range spans {
@@ -359,6 +372,7 @@ func maskRanges(line string, spans []span) string {
 	return string(bytes)
 }
 
+// emphasisDiagnostics reports unpaired emphasis delimiters.
 func emphasisDiagnostics(line string, lineNumber, offset int) []lsp.Diagnostic {
 	asterisks := []span{}
 	underscores := []span{}
@@ -411,6 +425,7 @@ func emphasisDiagnostics(line string, lineNumber, offset int) []lsp.Diagnostic {
 	return result
 }
 
+// oddDelimiter returns the first run when delimiter totals are odd.
 func oddDelimiter(runs []span) (span, bool) {
 	if len(runs) == 0 {
 		return span{}, false
@@ -426,6 +441,7 @@ func oddDelimiter(runs []span) (span, bool) {
 	return runs[0], true
 }
 
+// intraWord reports whether a marker is surrounded by word bytes.
 func intraWord(line string, start, end int) bool {
 	if start == 0 || end >= len(line) {
 		return false
@@ -433,12 +449,14 @@ func intraWord(line string, start, end int) bool {
 	return isWordByte(line[start-1]) && isWordByte(line[end])
 }
 
+// surroundedBySpace reports whether a marker is surrounded by whitespace.
 func surroundedBySpace(line string, start, end int) bool {
 	beforeSpace := start == 0 || line[start-1] == ' ' || line[start-1] == '\t'
 	afterSpace := end >= len(line) || line[end] == ' ' || line[end] == '\t'
 	return beforeSpace && afterSpace
 }
 
+// isWordByte reports whether a byte can be part of a word.
 func isWordByte(value byte) bool {
 	return value >= '0' && value <= '9' ||
 		value >= 'A' && value <= 'Z' ||

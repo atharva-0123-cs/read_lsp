@@ -14,6 +14,7 @@ import (
 
 const version = "0.4.0"
 
+// main starts the stdio language server and handles process lifecycle.
 func main() {
 	logPath := flag.String("log", "./log.txt", "path to the server log file")
 	showVersion := flag.Bool("version", false, "print the server version and exit")
@@ -44,6 +45,7 @@ func main() {
 	logger.Print("server stopped")
 }
 
+// getLogger opens the configured log file and returns a logger.
 func getLogger(filename string) *log.Logger {
 	logfile, err := os.OpenFile(
 		filename,

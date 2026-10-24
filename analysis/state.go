@@ -10,47 +10,56 @@ import (
 	"github.com/atharva-0123-cs/read_lsp/lsp"
 )
 
+// document returns a document snapshot under the read lock.
 type document struct {
 	text string
 }
 
+// State is a concurrency-safe store of open Markdown documents.
 type State struct {
 	mu        sync.RWMutex
 	documents map[string]document
 }
 
+// NewState creates an empty document state.
 func NewState() *State {
 	return &State{documents: map[string]document{}}
 }
 
+// OpenDocument stores a document and returns its diagnostics.
 func (s *State) OpenDocument(uri, text string) []lsp.Diagnostic {
 	s.PutDocument(uri, text)
 	return diagnostics.Analyze(text)
 }
 
+// PutDocument stores a document without running analysis.
 func (s *State) PutDocument(uri, text string) {
 	s.mu.Lock()
 	s.documents[uri] = document{text: text}
 	s.mu.Unlock()
 }
 
+// UpdateDocument replaces a document and returns its diagnostics.
 func (s *State) UpdateDocument(uri, text string) []lsp.Diagnostic {
 	s.ReplaceDocument(uri, text)
 	return diagnostics.Analyze(text)
 }
 
+// ReplaceDocument replaces a document without running analysis.
 func (s *State) ReplaceDocument(uri, text string) {
 	s.mu.Lock()
 	s.documents[uri] = document{text: text}
 	s.mu.Unlock()
 }
 
+// CloseDocument removes a document from the state.
 func (s *State) CloseDocument(uri string) {
 	s.mu.Lock()
 	delete(s.documents, uri)
 	s.mu.Unlock()
 }
 
+// Diagnostics analyzes the current text of a document.
 func (s *State) Diagnostics(uri string) []lsp.Diagnostic {
 	doc, ok := s.document(uri)
 	if !ok {
@@ -59,11 +68,13 @@ func (s *State) Diagnostics(uri string) []lsp.Diagnostic {
 	return diagnostics.Analyze(doc.text)
 }
 
+// DocumentText returns a snapshot of a document and whether it exists.
 func (s *State) DocumentText(uri string) (string, bool) {
 	doc, ok := s.document(uri)
 	return doc.text, ok
 }
 
+// document returns a document snapshot under the read lock.
 func (s *State) document(uri string) (document, bool) {
 	s.mu.RLock()
 	doc, ok := s.documents[uri]
@@ -71,6 +82,7 @@ func (s *State) document(uri string) (document, bool) {
 	return doc, ok
 }
 
+// Hover returns Markdown documentation for the element at a position.
 func (s *State) Hover(
 	id json.RawMessage,
 	uri string,
@@ -94,6 +106,7 @@ func (s *State) Hover(
 	}
 }
 
+// Definition resolves the link or anchor at a position.
 func (s *State) Definition(
 	id json.RawMessage,
 	uri string,
@@ -110,6 +123,7 @@ func (s *State) Definition(
 	}
 }
 
+// TextDocumentCodeAction returns quick fixes overlapping a range.
 func (s *State) TextDocumentCodeAction(
 	id json.RawMessage,
 	uri string,
@@ -140,6 +154,7 @@ func (s *State) TextDocumentCodeAction(
 	}
 }
 
+// TextDocumentCompletion returns Markdown snippet completions.
 func (s *State) TextDocumentCompletion(
 	id json.RawMessage,
 	uri string,
@@ -156,6 +171,7 @@ func (s *State) TextDocumentCompletion(
 	}
 }
 
+// hoverAt builds hover content for the element at a position.
 func hoverAt(text string, position lsp.Position) (string, bool) {
 	source := diagnostics.Parse(text)
 	if position.Line < 0 || position.Line >= len(source.Lines) {
@@ -187,6 +203,7 @@ func hoverAt(text string, position lsp.Position) (string, bool) {
 	return "", false
 }
 
+// hoverHeading formats documentation for a heading.
 func hoverHeading(heading diagnostics.Heading) string {
 	parts := []string{
 		"**Markdown heading**",
@@ -204,6 +221,7 @@ func hoverHeading(heading diagnostics.Heading) string {
 	return strings.Join(parts, "\n\n")
 }
 
+// hoverFence formats documentation for a fenced code block.
 func hoverFence(fence diagnostics.Fence) string {
 	status := "closed"
 	if !fence.Closed {
@@ -221,6 +239,7 @@ func hoverFence(fence diagnostics.Fence) string {
 	}, "\n\n")
 }
 
+// hoverDefinition formats documentation for a reference definition.
 func hoverDefinition(source *diagnostics.Document, definition diagnostics.Definition) string {
 	parts := []string{
 		"**Link reference definition**",
@@ -238,6 +257,7 @@ func hoverDefinition(source *diagnostics.Document, definition diagnostics.Defini
 	return strings.Join(parts, "\n\n")
 }
 
+// hoverAutolink formats documentation for an autolink.
 func hoverAutolink(link diagnostics.Autolink) string {
 	kind := "Autolink"
 	if link.Email {
@@ -250,6 +270,7 @@ func hoverAutolink(link diagnostics.Autolink) string {
 	}, "\n\n")
 }
 
+// hoverLink formats documentation for a link or image.
 func hoverLink(source *diagnostics.Document, link linkInfo) string {
 	kind := "Link"
 	if link.Image {
@@ -287,6 +308,7 @@ func hoverLink(source *diagnostics.Document, link linkInfo) string {
 	return strings.Join(parts, "\n\n")
 }
 
+// anchorHeading finds the heading targeted by an anchor destination.
 func anchorHeading(source *diagnostics.Document, destination string) (diagnostics.Heading, bool) {
 	if !strings.HasPrefix(destination, "#") {
 		return diagnostics.Heading{}, false
@@ -294,6 +316,7 @@ func anchorHeading(source *diagnostics.Document, destination string) (diagnostic
 	return source.HeadingForAnchor(destination)
 }
 
+// linkInfo describes a link or image found in a line.
 type linkInfo struct {
 	Image         bool
 	Text          string
@@ -307,6 +330,7 @@ type linkInfo struct {
 	End           int
 }
 
+// linkAt returns the link or image containing a character position.
 func linkAt(source *diagnostics.Document, lineNumber, character int) (linkInfo, bool) {
 	line := source.Lines[lineNumber]
 	character = clamp(character, 0, len(line))
@@ -318,6 +342,7 @@ func linkAt(source *diagnostics.Document, lineNumber, character int) (linkInfo, 
 	return linkInfo{}, false
 }
 
+// linksInLine scans a line for inline and reference links.
 func linksInLine(source *diagnostics.Document, lineNumber int) []linkInfo {
 	line := source.Lines[lineNumber]
 	result := []linkInfo{}
@@ -419,6 +444,7 @@ func linksInLine(source *diagnostics.Document, lineNumber int) []linkInfo {
 	return result
 }
 
+// resolvedDestination returns the effective destination of a link.
 func resolvedDestination(link linkInfo) string {
 	if link.Reference && link.HasDefinition {
 		return link.Definition.Destination
@@ -426,6 +452,7 @@ func resolvedDestination(link linkInfo) string {
 	return link.Destination
 }
 
+// inlineCodeAt returns the inline code span containing a position.
 func inlineCodeAt(line string, character int) (string, bool) {
 	character = clamp(character, 0, len(line))
 	for index := 0; index < len(line); {
@@ -452,6 +479,7 @@ func inlineCodeAt(line string, character int) (string, bool) {
 	return "", false
 }
 
+// definitionLocation resolves a definition request to a location.
 func definitionLocation(text, uri string, position lsp.Position) *lsp.Location {
 	source := diagnostics.Parse(text)
 	if position.Line < 0 || position.Line >= len(source.Lines) {
@@ -476,6 +504,7 @@ func definitionLocation(text, uri string, position lsp.Position) *lsp.Location {
 	return anchorLocation(source, uri, link.Destination)
 }
 
+// anchorLocation converts an anchor destination into a heading location.
 func anchorLocation(source *diagnostics.Document, uri, destination string) *lsp.Location {
 	heading, ok := anchorHeading(source, destination)
 	if !ok {
@@ -487,6 +516,7 @@ func anchorLocation(source *diagnostics.Document, uri, destination string) *lsp.
 	}
 }
 
+// codeActionFor builds a quick fix for a supported diagnostic.
 func codeActionFor(source *diagnostics.Document, text, uri string, diagnostic lsp.Diagnostic) (lsp.CodeAction, bool) {
 	switch diagnostic.Code {
 	case diagnostics.CodeHeadingSpace:
@@ -616,6 +646,7 @@ func codeActionFor(source *diagnostics.Document, text, uri string, diagnostic ls
 	}
 }
 
+// editAction creates a code action containing one text edit.
 func editAction(title, uri string, rangeValue lsp.Range, newText string) lsp.CodeAction {
 	return lsp.CodeAction{
 		Title: title,
@@ -627,6 +658,7 @@ func editAction(title, uri string, rangeValue lsp.Range, newText string) lsp.Cod
 	}
 }
 
+// completionItems returns context-sensitive Markdown snippets.
 func completionItems(text string, position lsp.Position) []lsp.CompletionItem {
 	lines := strings.Split(text, "\n")
 	if position.Line < 0 || position.Line >= len(lines) {
@@ -682,6 +714,7 @@ func completionItems(text string, position lsp.Position) []lsp.CompletionItem {
 	}
 }
 
+// blockCompletionItems returns snippets suitable for an empty line.
 func blockCompletionItems(indent string, replace lsp.Range) []lsp.CompletionItem {
 	items := headingCompletionItems(indent, replace)
 	items = append(items,
@@ -701,6 +734,7 @@ func blockCompletionItems(indent string, replace lsp.Range) []lsp.CompletionItem
 	return items
 }
 
+// headingCompletionItems returns ATX heading snippets.
 func headingCompletionItems(indent string, replace lsp.Range) []lsp.CompletionItem {
 	items := make([]lsp.CompletionItem, 0, 6)
 	for level := 1; level <= 6; level++ {
@@ -714,6 +748,7 @@ func headingCompletionItems(indent string, replace lsp.Range) []lsp.CompletionIt
 	return items
 }
 
+// snippetItem creates a snippet completion with a text edit.
 func snippetItem(label, detail, insert string, replace lsp.Range) lsp.CompletionItem {
 	return lsp.CompletionItem{
 		Label:            label,
@@ -727,10 +762,12 @@ func snippetItem(label, detail, insert string, replace lsp.Range) lsp.Completion
 	}
 }
 
+// rangesOverlap reports whether two ranges intersect.
 func rangesOverlap(left, right lsp.Range) bool {
 	return !positionBefore(left.End, right.Start) && !positionBefore(right.End, left.Start)
 }
 
+// positionBefore reports whether one position precedes another.
 func positionBefore(left, right lsp.Position) bool {
 	if left.Line != right.Line {
 		return left.Line < right.Line
@@ -738,6 +775,7 @@ func positionBefore(left, right lsp.Position) bool {
 	return left.Character < right.Character
 }
 
+// markdownRange creates a range on a single line.
 func markdownRange(line, start, end int) lsp.Range {
 	return lsp.Range{
 		Start: lsp.Position{Line: line, Character: start},
@@ -745,6 +783,7 @@ func markdownRange(line, start, end int) lsp.Range {
 	}
 }
 
+// endPosition returns the position after the final character of text.
 func endPosition(text string) lsp.Position {
 	lines := strings.Split(text, "\n")
 	return lsp.Position{
@@ -753,6 +792,7 @@ func endPosition(text string) lsp.Position {
 	}
 }
 
+// lineDeletionRange returns a range that deletes one line.
 func lineDeletionRange(lines []string, line int) lsp.Range {
 	if line < 0 || line >= len(lines) {
 		return lsp.Range{}
@@ -769,6 +809,7 @@ func lineDeletionRange(lines []string, line int) lsp.Range {
 	}
 }
 
+// textInRange extracts the text covered by a range.
 func textInRange(lines []string, rangeValue lsp.Range) string {
 	if rangeValue.Start.Line < 0 || rangeValue.Start.Line >= len(lines) {
 		return ""
@@ -779,6 +820,7 @@ func textInRange(lines []string, rangeValue lsp.Range) string {
 	return line[start:end]
 }
 
+// matchingBracket finds the closing bracket for a link.
 func matchingBracket(line string, open int) int {
 	depth := 0
 	escaped := false
@@ -802,6 +844,7 @@ func matchingBracket(line string, open int) int {
 	return -1
 }
 
+// matchingParen finds the closing parenthesis for a link target.
 func matchingParen(line string, open int) int {
 	depth := 1
 	escaped := false
@@ -850,6 +893,7 @@ func matchingParen(line string, open int) int {
 	return -1
 }
 
+// spacedReferenceBracket finds a reference bracket after whitespace.
 func spacedReferenceBracket(line string, next int) int {
 	if next < len(line) && line[next] == '[' {
 		return next
@@ -864,6 +908,7 @@ func spacedReferenceBracket(line string, next int) int {
 	return -1
 }
 
+// closingReference finds the closing bracket of a reference label.
 func closingReference(line string, open int) int {
 	escaped := false
 	for index := open + 1; index < len(line); index++ {
@@ -882,6 +927,7 @@ func closingReference(line string, open int) int {
 	return -1
 }
 
+// closingAngle finds the next unescaped closing angle bracket.
 func closingAngle(line string, start int) int {
 	escaped := false
 	for index := start; index < len(line); index++ {
@@ -900,6 +946,7 @@ func closingAngle(line string, start int) int {
 	return -1
 }
 
+// backtickRun counts consecutive backticks.
 func backtickRun(line string, start int) int {
 	length := 0
 	for start+length < len(line) && line[start+length] == '`' {
@@ -908,6 +955,7 @@ func backtickRun(line string, start int) int {
 	return length
 }
 
+// closingBacktickRun finds a closing backtick run of a given length.
 func closingBacktickRun(line string, start, length int) int {
 	for index := start; index < len(line); {
 		if line[index] == '\\' {
@@ -927,6 +975,7 @@ func closingBacktickRun(line string, start, length int) int {
 	return -1
 }
 
+// isOrderedListMarker reports whether text is an ordered list marker.
 func isOrderedListMarker(value string) bool {
 	digits := 0
 	for digits < len(value) && value[digits] >= '0' && value[digits] <= '9' {
@@ -938,6 +987,7 @@ func isOrderedListMarker(value string) bool {
 	return value[digits] == '.' || value[digits] == ')'
 }
 
+// clamp bounds a value between a minimum and maximum.
 func clamp(value, minimum, maximum int) int {
 	if value < minimum {
 		return minimum

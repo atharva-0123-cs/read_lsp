@@ -9,29 +9,33 @@ import (
 	"strings"
 )
 
+// BaseMessage is the common JSON-RPC envelope decoded before dispatch.
 type BaseMessage struct {
 	RPC    string          `json:"jsonrpc"`
 	ID     json.RawMessage `json:"id,omitempty"`
 	Method string          `json:"method"`
 }
 
+// IsRequest reports whether the message has a non-null request ID.
 func (m BaseMessage) IsRequest() bool {
 	return len(m.ID) > 0 && string(m.ID) != "null"
 }
 
+// RequestKey returns the request ID as a string key.
 func (m BaseMessage) RequestKey() string {
 	return string(m.ID)
 }
 
-func EncodeMessage(msg any) string {
-	contnet, err := json.Marshal(msg)
-	// TODO : handel this in better waay
+// EncodeMessage serializes a message with an LSP Content-Length header.
+func EncodeMessage(msg any) (string, error) {
+	content, err := json.Marshal(msg)
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("encode message: %w", err)
 	}
-	return fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(contnet), contnet)
+	return fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(content), content), nil
 }
 
+// DecodeMessage returns the method and body of an LSP message.
 func DecodeMessage(msg []byte) (string, []byte, error) {
 	baseMessage, content, err := DecodeMessageBase(msg)
 	if err != nil {
@@ -40,6 +44,7 @@ func DecodeMessage(msg []byte) (string, []byte, error) {
 	return baseMessage.Method, content, nil
 }
 
+// DecodeMessageBase decodes the JSON-RPC envelope and body.
 func DecodeMessageBase(msg []byte) (BaseMessage, []byte, error) {
 	header, content, found := bytes.Cut(msg, []byte{'\r', '\n', '\r', '\n'})
 	if !found {
@@ -62,6 +67,7 @@ func DecodeMessageBase(msg []byte) (BaseMessage, []byte, error) {
 	return baseMessage, content[:contentLength], nil
 }
 
+// Split is a bufio.Scanner split function for LSP frames.
 func Split(data []byte, _ bool) (advance int, tocken []byte, err error) {
 	header, content, found := bytes.Cut(data, []byte{'\r', '\n', '\r', '\n'})
 	if !found {
@@ -81,6 +87,7 @@ func Split(data []byte, _ bool) (advance int, tocken []byte, err error) {
 	return totalLength, data[:totalLength], nil
 }
 
+// parseContentLength extracts the Content-Length header value.
 func parseContentLength(header []byte) (int, error) {
 	for _, line := range strings.Split(string(header), "\r\n") {
 		name, value, found := strings.Cut(line, ":")

@@ -33,6 +33,7 @@ const (
 	CodeListMarker         = "markdown.list-marker"
 )
 
+// Analyze parses Markdown text and returns sorted syntax diagnostics.
 func Analyze(text string) []lsp.Diagnostic {
 	document := Parse(text)
 	result := []lsp.Diagnostic{}
@@ -71,6 +72,7 @@ func Analyze(text string) []lsp.Diagnostic {
 	return result
 }
 
+// headingDiagnostics checks heading level and spacing.
 func headingDiagnostics(document *Document) []lsp.Diagnostic {
 	result := []lsp.Diagnostic{}
 
@@ -103,6 +105,7 @@ func headingDiagnostics(document *Document) []lsp.Diagnostic {
 	return result
 }
 
+// fenceDiagnostics reports fenced code blocks that are not closed.
 func fenceDiagnostics(document *Document) []lsp.Diagnostic {
 	result := []lsp.Diagnostic{}
 
@@ -120,6 +123,7 @@ func fenceDiagnostics(document *Document) []lsp.Diagnostic {
 	return result
 }
 
+// listDiagnostics checks ordered list marker compatibility.
 func listDiagnostics(document *Document) []lsp.Diagnostic {
 	result := []lsp.Diagnostic{}
 
@@ -142,6 +146,7 @@ func listDiagnostics(document *Document) []lsp.Diagnostic {
 	return result
 }
 
+// definitionDiagnostics checks link reference definitions.
 func definitionDiagnostics(document *Document) []lsp.Diagnostic {
 	result := []lsp.Diagnostic{}
 	seen := map[string]Definition{}
@@ -178,6 +183,7 @@ func definitionDiagnostics(document *Document) []lsp.Diagnostic {
 	return result
 }
 
+// newDiagnostic constructs a diagnostic with a single-line range.
 func newDiagnostic(line, start, end, severity int, code, message string) lsp.Diagnostic {
 	if start < 0 {
 		start = 0
@@ -195,6 +201,7 @@ func newDiagnostic(line, start, end, severity int, code, message string) lsp.Dia
 	}
 }
 
+// lineRange constructs a range on one line.
 func lineRange(line, start, end int) lsp.Range {
 	return lsp.Range{
 		Start: lsp.Position{Line: line, Character: start},
@@ -202,6 +209,7 @@ func lineRange(line, start, end int) lsp.Range {
 	}
 }
 
+// sortDiagnostics orders diagnostics by line and character.
 func sortDiagnostics(diagnostics []lsp.Diagnostic) {
 	sort.SliceStable(diagnostics, func(left, right int) bool {
 		leftPosition := diagnostics[left].Range.Start

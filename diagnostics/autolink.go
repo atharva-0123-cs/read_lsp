@@ -6,6 +6,7 @@ import (
 	"github.com/atharva-0123-cs/read_lsp/lsp"
 )
 
+// Autolink describes a URL or email autolink found in a line.
 type Autolink struct {
 	Start       int
 	End         int
@@ -14,12 +15,14 @@ type Autolink struct {
 	Email       bool
 }
 
+// angleSpan is a span between angle brackets.
 type angleSpan struct {
 	Start   int
 	End     int
 	Content string
 }
 
+// AutolinkAt returns the autolink containing a character position.
 func AutolinkAt(line string, character int) (Autolink, bool) {
 	character = clampCharacter(character, len(line))
 	for _, current := range angleSpans(line) {
@@ -34,6 +37,7 @@ func AutolinkAt(line string, character int) (Autolink, bool) {
 	return Autolink{}, false
 }
 
+// HTMLTagAt returns the inline HTML tag containing a character position.
 func HTMLTagAt(line string, character int) (string, bool) {
 	character = clampCharacter(character, len(line))
 	for _, current := range angleSpans(line) {
@@ -48,6 +52,7 @@ func HTMLTagAt(line string, character int) (string, bool) {
 	return "", false
 }
 
+// newAutolink converts an angle span into an autolink.
 func newAutolink(current angleSpan) Autolink {
 	destination := current.Content
 	email := isEmailAutolink(current.Content)
@@ -63,6 +68,7 @@ func newAutolink(current angleSpan) Autolink {
 	}
 }
 
+// angleSpans finds all unescaped angle-bracket spans in a line.
 func angleSpans(line string) []angleSpan {
 	result := []angleSpan{}
 	for index := 0; index < len(line); {
@@ -90,6 +96,7 @@ func angleSpans(line string) []angleSpan {
 	return result
 }
 
+// maskHTMLAndAutolinks blanks HTML and autolinks before other checks.
 func maskHTMLAndAutolinks(line string, lineNumber, offset int) (string, []lsp.Diagnostic) {
 	bytes := []byte(line)
 	result := []lsp.Diagnostic{}
@@ -133,6 +140,7 @@ func maskHTMLAndAutolinks(line string, lineNumber, offset int) (string, []lsp.Di
 	return string(bytes), result
 }
 
+// looksLikeAutolinkStart reports whether text begins like an autolink.
 func looksLikeAutolinkStart(value string) bool {
 	if index := strings.IndexAny(value, " \t"); index >= 0 {
 		value = value[:index]
@@ -140,6 +148,7 @@ func looksLikeAutolinkStart(value string) bool {
 	return value != "" && isAutolink(value)
 }
 
+// isAutolink reports whether a value is a supported URL or email autolink.
 func isAutolink(value string) bool {
 	if value == "" || strings.ContainsAny(value, " \t<>") {
 		return false
@@ -151,6 +160,7 @@ func isAutolink(value string) bool {
 	return isEmailAutolink(value)
 }
 
+// isEmailAutolink reports whether a value is an email autolink.
 func isEmailAutolink(value string) bool {
 	if strings.ContainsAny(value, " \t<>\n") {
 		return false
@@ -166,6 +176,7 @@ func isEmailAutolink(value string) bool {
 	return strings.Contains(domain, ".") && !strings.HasPrefix(domain, ".") && !strings.HasSuffix(domain, ".")
 }
 
+// isHTMLTag reports whether an angle span looks like inline HTML.
 func isHTMLTag(value string) bool {
 	if value == "" {
 		return false
@@ -177,6 +188,7 @@ func isHTMLTag(value string) bool {
 	return value[0] >= 'A' && value[0] <= 'Z' || value[0] >= 'a' && value[0] <= 'z'
 }
 
+// clampCharacter bounds a character index to a line length.
 func clampCharacter(value, length int) int {
 	if value < 0 {
 		return 0

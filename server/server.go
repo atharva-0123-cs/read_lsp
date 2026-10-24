@@ -22,6 +22,7 @@ const (
 	maxMessageSize             = 32 * 1024 * 1024
 )
 
+// Options configures a Server instance.
 type Options struct {
 	Logger              *log.Logger
 	State               *analysis.State
@@ -29,11 +30,13 @@ type Options struct {
 	DiagnosticsDebounce time.Duration
 }
 
+// job is a queued request with its framed contents.
 type job struct {
 	base     rpc.BaseMessage
 	contents []byte
 }
 
+// Server owns the runtime state for one LSP connection.
 type Server struct {
 	logger           *log.Logger
 	state            *analysis.State
@@ -62,6 +65,7 @@ type Server struct {
 	diagnosticsTimers map[string]*time.Timer
 }
 
+// New creates a server with defaults for zero-valued options.
 func New(options Options) *Server {
 	if options.Logger == nil {
 		options.Logger = log.New(io.Discard, "", 0)
@@ -88,6 +92,7 @@ func New(options Options) *Server {
 	}
 }
 
+// Serve reads LSP messages, dispatches them, and writes responses.
 func (s *Server) Serve(ctx context.Context, reader io.Reader, writer io.Writer) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -135,18 +140,25 @@ func (s *Server) Serve(ctx context.Context, reader io.Reader, writer io.Writer) 
 	return err
 }
 
+// startWriter starts the single goroutine that owns output.
 func (s *Server) startWriter(writer io.Writer) {
 	s.writerWG.Add(1)
 	go func() {
 		defer s.writerWG.Done()
 		for message := range s.out {
-			if _, err := io.WriteString(writer, rpc.EncodeMessage(message)); err != nil {
+			encoded, err := rpc.EncodeMessage(message)
+			if err != nil {
+				s.logger.Printf("could not encode response: %s", err)
+				continue
+			}
+			if _, err := io.WriteString(writer, encoded); err != nil {
 				s.logger.Printf("could not write response: %s", err)
 			}
 		}
 	}()
 }
 
+// startWorkers starts the asynchronous request workers.
 func (s *Server) startWorkers() {
 	for idx := 0; idx < s.workers; idx++ {
 		s.workerWG.Add(1)
@@ -154,6 +166,7 @@ func (s *Server) startWorkers() {
 	}
 }
 
+// worker processes queued requests until the job channel closes.
 func (s *Server) worker() {
 	defer s.workerWG.Done()
 
@@ -173,6 +186,7 @@ func (s *Server) worker() {
 	}
 }
 
+// isAsyncRequest reports whether a method runs on the worker pool.
 func isAsyncRequest(method string) bool {
 	switch method {
 	case "textDocument/hover", "textDocument/definition", "textDocument/references",
@@ -184,6 +198,7 @@ func isAsyncRequest(method string) bool {
 	}
 }
 
+// dispatch queues a request for asynchronous handling.
 func (s *Server) dispatch(base rpc.BaseMessage, contents []byte) {
 	current := job{
 		base:     base,
@@ -196,6 +211,7 @@ func (s *Server) dispatch(base rpc.BaseMessage, contents []byte) {
 	}
 }
 
+// handleNotification applies a client notification in order.
 func (s *Server) handleNotification(method string, contents []byte) {
 	switch method {
 	case "initialized":
@@ -249,6 +265,7 @@ func (s *Server) handleNotification(method string, contents []byte) {
 	}
 }
 
+// handleRequest decodes and handles one LSP request.
 func (s *Server) handleRequest(ctx context.Context, current job) {
 	base := current.base
 
@@ -406,6 +423,7 @@ func (s *Server) handleRequest(ctx context.Context, current job) {
 	}
 }
 
+// requestCanceled reports and responds to canceled work.
 func (s *Server) requestCanceled(ctx context.Context, id json.RawMessage) bool {
 	if ctx.Err() == nil {
 		return false
@@ -414,10 +432,12 @@ func (s *Server) requestCanceled(ctx context.Context, id json.RawMessage) bool {
 	return true
 }
 
+// sendError enqueues a JSON-RPC error response.
 func (s *Server) sendError(id json.RawMessage, code int, message string) {
 	s.enqueue(lsp.NewErrorResponse(id, code, message))
 }
 
+// enqueue sends a message to the serialized writer.
 func (s *Server) enqueue(message any) {
 	s.outMu.Lock()
 	defer s.outMu.Unlock()
@@ -427,6 +447,7 @@ func (s *Server) enqueue(message any) {
 	s.out <- message
 }
 
+// registerCancel tracks a request cancellation function.
 func (s *Server) registerCancel(key string, cancel context.CancelFunc) {
 	s.cancelMu.Lock()
 	defer s.cancelMu.Unlock()
@@ -438,6 +459,7 @@ func (s *Server) registerCancel(key string, cancel context.CancelFunc) {
 	s.cancels[key] = cancel
 }
 
+// unregisterCancel clears cancellation state for a request.
 func (s *Server) unregisterCancel(key string) {
 	s.cancelMu.Lock()
 	delete(s.cancels, key)
@@ -445,6 +467,7 @@ func (s *Server) unregisterCancel(key string) {
 	s.cancelMu.Unlock()
 }
 
+// cancelRequest cancels an in-flight request by ID.
 func (s *Server) cancelRequest(key string) {
 	s.cancelMu.Lock()
 	defer s.cancelMu.Unlock()
@@ -456,6 +479,7 @@ func (s *Server) cancelRequest(key string) {
 	s.canceledRequests[key] = true
 }
 
+// scheduleDiagnostics debounces diagnostics for a document.
 func (s *Server) scheduleDiagnostics(uri string) {
 	s.diagnosticsMu.Lock()
 	defer s.diagnosticsMu.Unlock()
@@ -473,6 +497,7 @@ func (s *Server) scheduleDiagnostics(uri string) {
 	})
 }
 
+// publishDiagnostics publishes results for the latest document version.
 func (s *Server) publishDiagnostics(uri string, token uint64) {
 	s.diagnosticsMu.Lock()
 	if s.diagnosticsLatest[uri] != token {
@@ -498,6 +523,7 @@ func (s *Server) publishDiagnostics(uri string, token uint64) {
 	s.publish(uri, diagnostics)
 }
 
+// clearDiagnostics clears diagnostics after a document closes.
 func (s *Server) clearDiagnostics(uri string) {
 	s.publishMu.Lock()
 	defer s.publishMu.Unlock()
@@ -513,6 +539,7 @@ func (s *Server) clearDiagnostics(uri string) {
 	s.publish(uri, []lsp.Diagnostic{})
 }
 
+// publish enqueues a diagnostics notification.
 func (s *Server) publish(uri string, diagnostics []lsp.Diagnostic) {
 	s.enqueue(lsp.PublishDiagnosticsNotification{
 		Notificaton: lsp.NewNotification("textDocument/publishDiagnostics"),
@@ -523,6 +550,7 @@ func (s *Server) publish(uri string, diagnostics []lsp.Diagnostic) {
 	})
 }
 
+// flushDiagnostics publishes pending diagnostics during shutdown.
 func (s *Server) flushDiagnostics() {
 	s.diagnosticsMu.Lock()
 	uris := make([]string, 0, len(s.diagnosticsTimers))
@@ -543,6 +571,7 @@ func (s *Server) flushDiagnostics() {
 	}
 }
 
+// shutdown drains pending work and closes output safely.
 func (s *Server) shutdown(shouldExit bool) {
 	if shouldExit {
 		s.logger.Print("client requested exit")

@@ -10,6 +10,7 @@ import (
 	"github.com/atharva-0123-cs/read_lsp/lsp"
 )
 
+// DocumentSymbols returns nested heading symbols for a document.
 func (s *State) DocumentSymbols(id json.RawMessage, uri string) lsp.DocumentSymbolResponse {
 	result := []lsp.DocumentSymbol{}
 	if text, ok := s.DocumentText(uri); ok {
@@ -21,6 +22,7 @@ func (s *State) DocumentSymbols(id json.RawMessage, uri string) lsp.DocumentSymb
 	}
 }
 
+// FoldingRanges returns foldable heading and code block ranges.
 func (s *State) FoldingRanges(id json.RawMessage, uri string) lsp.FoldingRangeResponse {
 	result := []lsp.FoldingRange{}
 	if text, ok := s.DocumentText(uri); ok {
@@ -32,6 +34,7 @@ func (s *State) FoldingRanges(id json.RawMessage, uri string) lsp.FoldingRangeRe
 	}
 }
 
+// References returns uses of the reference label or anchor at a position.
 func (s *State) References(
 	id json.RawMessage,
 	uri string,
@@ -48,12 +51,14 @@ func (s *State) References(
 	}
 }
 
+// symbolNode is an intermediate tree node for document symbols.
 type symbolNode struct {
 	symbol   lsp.DocumentSymbol
 	level    int
 	children []*symbolNode
 }
 
+// documentSymbols converts parsed headings into a symbol tree.
 func documentSymbols(source *diagnostics.Document) []lsp.DocumentSymbol {
 	roots := []*symbolNode{}
 	stack := []*symbolNode{}
@@ -92,6 +97,7 @@ func documentSymbols(source *diagnostics.Document) []lsp.DocumentSymbol {
 	return converted
 }
 
+// convertSymbol recursively converts a symbol node.
 func convertSymbol(node *symbolNode) lsp.DocumentSymbol {
 	symbol := node.symbol
 	symbol.Children = make([]lsp.DocumentSymbol, 0, len(node.children))
@@ -101,6 +107,7 @@ func convertSymbol(node *symbolNode) lsp.DocumentSymbol {
 	return symbol
 }
 
+// headingRange returns the full source range of a heading section.
 func headingRange(source *diagnostics.Document, index int) lsp.Range {
 	heading := source.Headings[index]
 	endLine := headingSectionEnd(source, index)
@@ -114,6 +121,7 @@ func headingRange(source *diagnostics.Document, index int) lsp.Range {
 	}
 }
 
+// headingSectionEnd returns the last line owned by a heading.
 func headingSectionEnd(source *diagnostics.Document, index int) int {
 	heading := source.Headings[index]
 	end := len(source.Lines) - 1
@@ -137,6 +145,7 @@ func headingSectionEnd(source *diagnostics.Document, index int) int {
 	return end
 }
 
+// foldingRanges collects heading and fenced code folds.
 func foldingRanges(source *diagnostics.Document) []lsp.FoldingRange {
 	result := []lsp.FoldingRange{}
 
@@ -178,17 +187,20 @@ func foldingRanges(source *diagnostics.Document) []lsp.FoldingRange {
 	return result
 }
 
+// lineLink pairs a link with the line where it appears.
 type lineLink struct {
 	line int
 	link linkInfo
 }
 
+// referenceTarget identifies a label or anchor reference target.
 type referenceTarget struct {
 	kind   string
 	label  string
 	anchor string
 }
 
+// referenceLocations finds all locations matching a reference target.
 func referenceLocations(text, uri string, position lsp.Position, includeDeclaration bool) []lsp.Location {
 	source := diagnostics.Parse(text)
 	if position.Line < 0 || position.Line >= len(source.Lines) {
@@ -267,6 +279,7 @@ func referenceLocations(text, uri string, position lsp.Position, includeDeclarat
 	return locations
 }
 
+// referenceTargetAt determines what the cursor position references.
 func referenceTargetAt(source *diagnostics.Document, position lsp.Position) (referenceTarget, bool) {
 	if definition, ok := source.DefinitionAt(position.Line); ok {
 		if strings.HasPrefix(definition.Destination, "#") && position.Character > definition.EndCol {
@@ -293,6 +306,7 @@ func referenceTargetAt(source *diagnostics.Document, position lsp.Position) (ref
 	return referenceTarget{}, false
 }
 
+// allLinks returns every link outside fences and definition lines.
 func allLinks(source *diagnostics.Document) []lineLink {
 	result := []lineLink{}
 	for line := range source.Lines {

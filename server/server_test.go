@@ -319,7 +319,11 @@ func runServer(t *testing.T, messages []any) []wireMessage {
 
 	var input strings.Builder
 	for _, message := range messages {
-		input.WriteString(rpc.EncodeMessage(message))
+		encoded, err := rpc.EncodeMessage(message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		input.WriteString(encoded)
 	}
 
 	var output bytes.Buffer

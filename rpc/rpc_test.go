@@ -13,10 +13,23 @@ type EncodingExample struct {
 
 func TestEncode(t *testing.T) {
 	expected := "Content-Length: 16\r\n\r\n{\"Testing\":true}"
-	actual := rpc.EncodeMessage(EncodingExample{Testing: true})
+	actual, err := rpc.EncodeMessage(EncodingExample{Testing: true})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if actual != expected {
 		t.Fatalf("Expected : %s , Actual : %s ", expected, actual)
+	}
+}
+
+func TestEncodeRejectsUnsupportedValue(t *testing.T) {
+	encoded, err := rpc.EncodeMessage(make(chan int))
+	if err == nil {
+		t.Fatal("expected an encoding error")
+	}
+	if encoded != "" {
+		t.Fatalf("expected no encoded message, got %q", encoded)
 	}
 }
 

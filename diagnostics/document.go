@@ -13,6 +13,7 @@ var (
 	setextPattern     = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
 )
 
+// Document is the parsed Markdown model for one source text.
 type Document struct {
 	Lines       []string
 	Headings    []Heading
@@ -28,6 +29,7 @@ type Document struct {
 	definitionsByLabel map[string]int
 }
 
+// Heading describes an ATX or Setext heading.
 type Heading struct {
 	Level      int
 	Text       string
@@ -40,6 +42,7 @@ type Heading struct {
 	Slug       string
 }
 
+// Definition describes a link reference definition.
 type Definition struct {
 	Label       string
 	Destination string
@@ -50,6 +53,7 @@ type Definition struct {
 	Valid       bool
 }
 
+// Fence describes a fenced code block.
 type Fence struct {
 	StartLine int
 	EndLine   int
@@ -60,6 +64,7 @@ type Fence struct {
 	Closed    bool
 }
 
+// fenceOpen is the parsed opening marker of a fenced code block.
 type fenceOpen struct {
 	marker   byte
 	length   int
@@ -67,6 +72,7 @@ type fenceOpen struct {
 	startCol int
 }
 
+// atxHeading is the parsed form of an ATX heading line.
 type atxHeading struct {
 	level      int
 	text       string
@@ -75,6 +81,7 @@ type atxHeading struct {
 	spaceAfter bool
 }
 
+// Parse builds a Markdown document model from source text.
 func Parse(text string) *Document {
 	lines := splitLines(text)
 	doc := &Document{
@@ -198,6 +205,7 @@ func Parse(text string) *Document {
 	return doc
 }
 
+// addHeading appends a heading and assigns a unique slug.
 func (d *Document) addHeading(heading Heading, slugCounts map[string]int) {
 	base := Slugify(heading.Text)
 	slug := base
@@ -211,6 +219,7 @@ func (d *Document) addHeading(heading Heading, slugCounts map[string]int) {
 	d.Headings = append(d.Headings, heading)
 }
 
+// canBeSetextText reports whether a line can be Setext heading text.
 func (d *Document) canBeSetextText(index int, content string, inList bool) bool {
 	if index < 0 || index >= len(d.Lines) {
 		return false
@@ -244,6 +253,7 @@ func (d *Document) canBeSetextText(index int, content string, inList bool) bool 
 	return true
 }
 
+// FenceAt returns the fenced code block containing a line.
 func (d *Document) FenceAt(line int) (Fence, bool) {
 	index, ok := d.fenceAt[line]
 	if !ok {
@@ -252,6 +262,7 @@ func (d *Document) FenceAt(line int) (Fence, bool) {
 	return d.Fences[index], true
 }
 
+// HeadingAt returns the heading defined on a line.
 func (d *Document) HeadingAt(line int) (Heading, bool) {
 	index, ok := d.headingAt[line]
 	if !ok {
@@ -260,6 +271,7 @@ func (d *Document) HeadingAt(line int) (Heading, bool) {
 	return d.Headings[index], true
 }
 
+// DefinitionAt returns the link reference definition on a line.
 func (d *Document) DefinitionAt(line int) (Definition, bool) {
 	index, ok := d.definitionAt[line]
 	if !ok {
@@ -268,6 +280,7 @@ func (d *Document) DefinitionAt(line int) (Definition, bool) {
 	return d.Definitions[index], true
 }
 
+// DefinitionFor finds a definition by normalized label.
 func (d *Document) DefinitionFor(label string) (Definition, bool) {
 	index, ok := d.definitionsByLabel[NormalizeLabel(label)]
 	if !ok {
@@ -276,19 +289,23 @@ func (d *Document) DefinitionFor(label string) (Definition, bool) {
 	return d.Definitions[index], true
 }
 
+// IsSetextUnderline reports whether a line is a Setext underline.
 func (d *Document) IsSetextUnderline(line int) bool {
 	return d.setextAt[line]
 }
 
+// IsThematicBreak reports whether a line is a thematic break.
 func (d *Document) IsThematicBreak(line int) bool {
 	return d.thematicAt[line]
 }
 
+// IsDefinitionLine reports whether a line is a link reference definition.
 func (d *Document) IsDefinitionLine(line int) bool {
 	_, ok := d.definitionAt[line]
 	return ok
 }
 
+// HeadingForAnchor finds a heading by anchor slug.
 func (d *Document) HeadingForAnchor(anchor string) (Heading, bool) {
 	normalized := NormalizeAnchor(anchor)
 	for _, heading := range d.Headings {
@@ -299,15 +316,18 @@ func (d *Document) HeadingForAnchor(anchor string) (Heading, bool) {
 	return Heading{}, false
 }
 
+// AnchorExists reports whether a heading slug exists.
 func (d *Document) AnchorExists(anchor string) bool {
 	_, ok := d.HeadingForAnchor(anchor)
 	return ok
 }
 
+// NormalizeLabel lowercases and collapses whitespace in a reference label.
 func NormalizeLabel(label string) string {
 	return strings.ToLower(strings.Join(strings.Fields(label), " "))
 }
 
+// NormalizeAnchor decodes and lowercases an anchor target.
 func NormalizeAnchor(anchor string) string {
 	normalized := strings.TrimSpace(strings.TrimPrefix(anchor, "#"))
 	if decoded, err := url.PathUnescape(normalized); err == nil {
@@ -316,6 +336,7 @@ func NormalizeAnchor(anchor string) string {
 	return strings.ToLower(normalized)
 }
 
+// Slugify converts heading text into a Markdown anchor slug.
 func Slugify(text string) string {
 	var builder strings.Builder
 	previousSpace := false
@@ -336,6 +357,7 @@ func Slugify(text string) string {
 	return strings.Trim(builder.String(), "-")
 }
 
+// blockquotePrefix strips blockquote markers and returns the quote depth.
 func blockquotePrefix(line string) (content string, offset int, depth int) {
 	for {
 		cursor := offset
@@ -357,6 +379,7 @@ func blockquotePrefix(line string) (content string, offset int, depth int) {
 	return line[offset:], offset, depth
 }
 
+// containerPrefix strips blockquote and list markers from a line.
 func containerPrefix(line string) (content string, offset int, inList bool) {
 	remainder, offset, _ := blockquotePrefix(line)
 
@@ -372,6 +395,7 @@ func containerPrefix(line string) (content string, offset int, inList bool) {
 	return line[afterMarker:], afterMarker, true
 }
 
+// ListMarker parses an ordered or unordered list marker.
 func ListMarker(line string) (indent int, marker string, ok bool) {
 	index := 0
 	for index < len(line) && index < 3 && line[index] == ' ' {
@@ -404,6 +428,7 @@ func ListMarker(line string) (indent int, marker string, ok bool) {
 	return 0, "", false
 }
 
+// parseDefinition parses a link reference definition line.
 func parseDefinition(line string) (Definition, bool) {
 	match := definitionPattern.FindStringSubmatchIndex(line)
 	if match == nil {
@@ -427,6 +452,7 @@ func parseDefinition(line string) (Definition, bool) {
 	}, true
 }
 
+// ParseDestinationTitle splits a link destination from its optional title.
 func ParseDestinationTitle(value string) (string, string, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -451,6 +477,7 @@ func ParseDestinationTitle(value string) (string, string, bool) {
 	return destination, title, ok
 }
 
+// parseTitle validates and extracts a quoted or parenthesized title.
 func parseTitle(remainder string) (string, bool) {
 	if remainder == "" {
 		return "", true
@@ -478,6 +505,7 @@ func parseTitle(remainder string) (string, bool) {
 	return strings.TrimSpace(remainder[1 : len(remainder)-1]), true
 }
 
+// parseATXHeading parses an ATX heading line.
 func parseATXHeading(line string) (atxHeading, bool) {
 	index := 0
 	for index < len(line) && index < 3 && line[index] == ' ' {
@@ -511,6 +539,7 @@ func parseATXHeading(line string) (atxHeading, bool) {
 	}, true
 }
 
+// trimClosingHashes removes optional closing hashes from heading text.
 func trimClosingHashes(text string) string {
 	trimmed := strings.TrimRight(text, " \t")
 	end := len(trimmed)
@@ -529,6 +558,7 @@ func trimClosingHashes(text string) string {
 	return text
 }
 
+// parseFenceOpen parses the opening line of a fenced code block.
 func parseFenceOpen(line string) (fenceOpen, bool) {
 	index := 0
 	for index < len(line) && index < 3 && line[index] == ' ' {
@@ -560,6 +590,7 @@ func parseFenceOpen(line string) (fenceOpen, bool) {
 	return fenceOpen{marker: marker, length: length, info: info, startCol: start}, true
 }
 
+// isFenceClose reports whether a line closes a fenced code block.
 func isFenceClose(line string, open fenceOpen) bool {
 	index := 0
 	for index < len(line) && index < 3 && line[index] == ' ' {
@@ -576,6 +607,7 @@ func isFenceClose(line string, open fenceOpen) bool {
 	return strings.TrimSpace(line[index:]) == ""
 }
 
+// isThematicBreak reports whether a line is a horizontal rule.
 func isThematicBreak(line string) bool {
 	index := 0
 	for index < len(line) && index < 3 && line[index] == ' ' {
@@ -603,6 +635,7 @@ func isThematicBreak(line string) bool {
 	return count >= 3
 }
 
+// setextLevel returns the heading level for a Setext underline.
 func setextLevel(line string) (int, bool) {
 	match := setextPattern.FindStringSubmatch(line)
 	if match == nil {
@@ -614,6 +647,7 @@ func setextLevel(line string) (int, bool) {
 	return 2, true
 }
 
+// findUnescaped finds the next unescaped occurrence of a byte.
 func findUnescaped(value string, target byte, start int) int {
 	escaped := false
 	for index := start; index < len(value); index++ {
@@ -632,6 +666,7 @@ func findUnescaped(value string, target byte, start int) int {
 	return -1
 }
 
+// firstNonSpace returns the index of the first non-space byte.
 func firstNonSpace(line string) int {
 	for index := 0; index < len(line); index++ {
 		if line[index] != ' ' && line[index] != '\t' {
@@ -641,6 +676,7 @@ func firstNonSpace(line string) int {
 	return 0
 }
 
+// splitLines normalizes line endings and splits source text into lines.
 func splitLines(text string) []string {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\r", "\n")
