@@ -17,9 +17,9 @@ diagnostics back to the client. The language features follow the
 - **Asynchronous request multiplexing** with a bounded worker pool, a dedicated
   serialized writer, and `$/cancelRequest` support.
 - **Thread-safe document state** protected by `sync.RWMutex`.
-- **Markdown parsing** for ATX and Setext headings, fenced code blocks, link
-  reference definitions, thematic breaks, links, autolinks, inline HTML,
-  images, emphasis, lists, blockquotes, and inline code.
+- **Markdown syntax support** for ATX and Setext headings, fenced code blocks,
+  link reference definitions, thematic breaks, links, images, autolinks, inline
+  HTML tags, list markers, blockquote prefixes, and inline code spans.
 - **Streaming diagnostics** with per-document debouncing, stale-result
   suppression, and a final flush on shutdown.
 - **Editor features** including diagnostics, hover, go to definition, find
@@ -125,25 +125,29 @@ go test ./server
 
 ## Markdown Support
 
-The parser covers the basic Markdown syntax:
+The parser recognizes:
 
 - ATX headings (`# Heading`) and Setext headings (`Heading` underlined with
   `===` or `---`).
-- Paragraphs, line breaks, emphasis (`*italic*`, `**bold**`), and blockquotes.
-- Ordered and unordered lists, including task-list-style checkboxes.
-- Inline code, fenced code blocks, and indented code lines.
-- Inline links, full/collapsed/shortcut reference links, images, autolinks, and
-  email autolinks.
-- Inline HTML and HTML tags, with Markdown syntax inside tags ignored.
-- Link reference definitions and thematic breaks.
-- Headings and definitions inside blockquotes and list items.
+- Blockquote prefixes, including nested markers, and fenced code blocks inside
+  blockquotes.
+- Ordered and unordered list markers.
+- Fenced code blocks, info strings, and unclosed fences.
+- Inline links, full/collapsed/shortcut reference links, images, autolinks,
+  email autolinks, and link reference definitions with optional titles.
+- Inline code spans for unclosed-span diagnostics and hover.
+- Inline HTML tags for masking and hover.
+- Thematic breaks.
+- ATX headings and link reference definitions inside blockquotes and list
+  items, plus Setext headings inside blockquotes.
 
 Diagnostics check for:
 
 - Heading levels deeper than six and missing spaces after heading markers.
 - Unclosed fenced code blocks, inline code spans, and autolinks.
 - Unclosed or malformed links and unmatched emphasis delimiters.
-- Undefined, duplicate, or invalid link reference definitions.
+- Undefined reference labels and duplicate or invalid link reference
+  definitions.
 - Local anchors that do not match any heading.
 - Ordered list markers that use `)` instead of `.`.
 
@@ -152,10 +156,14 @@ destinations, reference definitions, inline HTML, and inline code. Go to
 definition jumps from a reference link to its definition and from an anchor to
 its heading. Find references locates link uses and anchor targets. Document
 symbols expose nested headings, and folding ranges cover headings and fenced
-code. Completion provides Markdown snippets based on the current line. Code
-actions can add a heading space, close a fence, close an autolink, fix ordered
-list markers, remove duplicate definitions, and add missing reference
-definitions.
+code. Completion provides Markdown snippets for ATX headings, links, images,
+autolinks, emphasis, lists (including task items), blockquotes, fenced code,
+and reference definitions. Code actions can add a heading space, limit heading
+depth to six, close a fence, inline code span, link, reference label, autolink,
+or emphasis span, fix ordered list markers, remove duplicate or invalid
+definitions, and add missing reference definitions.
+
+Known Markdown support gaps are tracked in [TODO.md](TODO.md).
 
 ## Contributing
 
