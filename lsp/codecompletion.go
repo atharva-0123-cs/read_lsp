@@ -15,8 +15,10 @@ type CompletionResponse struct {
 }
 
 type CompletionItem struct {
-	Label         string  `json:"label"`
-	Detail        string  `json:"detail"`
-	Documentation string  `json:"documentation"`
-	InsertText    *string `json:"insertText"`
+	Label            string    `json:"label"`
+	Detail           string    `json:"detail"`
+	Documentation    string    `json:"documentation"`
+	InsertText       *string   `json:"insertText,omitempty"`
+	InsertTextFormat int       `json:"insertTextFormat,omitempty"`
+	TextEdit         *TextEdit `json:"textEdit,omitempty"`
 }

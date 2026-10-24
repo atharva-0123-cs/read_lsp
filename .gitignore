@@ -1,3 +1,8 @@
-./make
-./log.txt
-./README.md
+/main
+/read_lsp
+/make
+
+/log.txt
+/tests/log.txt
+
+.DS_Store

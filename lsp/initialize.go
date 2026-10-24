@@ -1,5 +1,7 @@
 package lsp
 
+import "encoding/json"
+
 type InitializeRequest struct {
 	Request
 	Params InitializeRequestParams `json:"params"`
@@ -27,12 +29,20 @@ type InitializeResult struct {
 }
 
 type ServerCapabilities struct {
-	TextDocumentSync int `json:"textDocumentSync"`
+	TextDocumentSync TextDocumentSyncOptions `json:"textDocumentSync"`
 
-	HoverProvider      bool           `json:"hoverProvider"`
-	DefinitionProvider bool           `json:"definitionProvider"`
-	CodeActionProvider bool           `json:"codeActionProvider"`
-	CompletionProvider map[string]any `json:"completionProvider"`
+	HoverProvider          bool           `json:"hoverProvider"`
+	DefinitionProvider     bool           `json:"definitionProvider"`
+	ReferencesProvider     bool           `json:"referencesProvider"`
+	DocumentSymbolProvider bool           `json:"documentSymbolProvider"`
+	FoldingRangeProvider   bool           `json:"foldingRangeProvider"`
+	CodeActionProvider     bool           `json:"codeActionProvider"`
+	CompletionProvider     map[string]any `json:"completionProvider"`
+}
+
+type TextDocumentSyncOptions struct {
+	OpenClose bool `json:"openClose"`
+	Change    int  `json:"change"`
 }
 
 type ServerInfo struct {
@@ -41,23 +51,40 @@ type ServerInfo struct {
 }
 
 func NewInitializeResponse(id int) InitializeResponse {
+	return NewInitializeResponseWithID(mustMarshalID(id))
+}
+
+func NewInitializeResponseWithID(id json.RawMessage) InitializeResponse {
 	return InitializeResponse{
-		Response: Response{
-			RPC: "",
-			ID:  &id,
-		},
+		Response: NewResponse(id),
 		Result: InitializeResult{
 			Capabilities: ServerCapabilities{
-				TextDocumentSync:   1,
-				HoverProvider:      true,
-				DefinitionProvider: true,
-				CodeActionProvider: true,
-				CompletionProvider: map[string]any{},
+				TextDocumentSync: TextDocumentSyncOptions{
+					OpenClose: true,
+					Change:    1,
+				},
+				HoverProvider:          true,
+				DefinitionProvider:     true,
+				ReferencesProvider:     true,
+				DocumentSymbolProvider: true,
+				FoldingRangeProvider:   true,
+				CodeActionProvider:     true,
+				CompletionProvider: map[string]any{
+					"triggerCharacters": []string{"#", "[", "!", "`", ">", "-", "*", "_", "<"},
+				},
 			},
 			ServerInfo: ServerInfo{
-				Name:    "golsp",
-				Version: "0.0.0-beta",
+				Name:    "read_lsp",
+				Version: "0.4.0",
 			},
 		},
 	}
+}
+
+func mustMarshalID(id int) json.RawMessage {
+	raw, err := json.Marshal(id)
+	if err != nil {
+		panic(err)
+	}
+	return raw
 }

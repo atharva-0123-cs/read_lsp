@@ -1,28 +1,27 @@
+local function server_command()
+  local configured = os.getenv("READ_LSP_BIN")
+  if configured and configured ~= "" then
+    return { configured }
+  end
 
--- ~/.config/nvim/lua/custom/markdown_lsp.lua
-local client_id = nil
+  local on_path = vim.fn.exepath("read_lsp")
+  if on_path ~= "" then
+    return { on_path }
+  end
+
+  return { vim.fn.expand("~/read_lsp/read_lsp") }
+end
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "markdown" },
   callback = function()
-    -- Prevent multiple clients
-    if client_id then return end
-
-    local cmd = { vim.fn.expand("~/read_lsp/main") }
-
-    local id = vim.lsp.start({
-      name = "markdown_lsp",
-      cmd = cmd,
-      root_dir = vim.fn.getcwd(), -- optional, can remove if unnecessary
+    vim.lsp.start({
+      name = "read_lsp",
+      cmd = server_command(),
+      root_dir = vim.fn.getcwd(),
       on_attach = function(client, bufnr)
-        print("✅ Custom Markdown LSP attached:", client.name)
+        vim.notify("read_lsp attached to buffer " .. bufnr, vim.log.levels.INFO)
       end,
-      filetypes = { "markdown" },
     })
-
-    -- Store client id (not the client object)
-    if id then
-      client_id = id
-    end
   end,
 })

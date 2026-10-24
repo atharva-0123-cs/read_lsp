@@ -15,5 +15,10 @@ type HoverResponse struct {
 }
 
 type HoverResult struct {
-	Contents string `json:"contents"`
+	Contents MarkupContent `json:"contents"`
+}
+
+type MarkupContent struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
 }
